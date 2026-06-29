@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s -X DELETE http://localhost:4000/api/articulos/all -w \"\\\\nHTTP_STATUS:%{http_code}\\\\n\")",
+      "Bash(tasklist //FI \"IMAGENAME eq node.exe\" //V)",
+      "Bash(netstat -ano)",
+      "Bash(wmic process *)",
+      "PowerShell(Get-CimInstance Win32_Process -Filter \"ProcessId=39212\")",
+      "Bash(cd \"/c/Users/fmedi/OneDrive/Documentos/Cotizador/backend\" && pwd && ls server.js)",
+      "Read(//c/Users/fmedi/OneDrive/Documentos/Cotizador/backend/**)",
+      "PowerShell(Stop-Process -Id 39212 -Force)",
+      "Bash(cd \"/c/Users/fmedi/OneDrive/Documentos/Cotizador/cotizador-frontend\" && npm run lint 2>&1 | tail -40)",
+      "Read(//c/Users/fmedi/OneDrive/Documentos/Cotizador/cotizador-frontend/**)",
+      "PowerShell(Stop-Process -Id 11864 -Force)",
+      "Bash(nohup node server.js)",
+      "Bash(disown)",
+      "Bash(sleep 1.5; netstat -ano | grep \":4000.*LISTENING\"; echo \"---log---\"; cat \"/c/Users/fmedi/AppData/Local/Temp/claude/c--Users-fmedi-OneDrive-Documentos-Cotizador/48cd4d2b-fb62-4f6a-9199-1a61c1eff815/scratchpad/backend.log\")",
+      "Read(//c/Users/fmedi/AppData/Local/Temp/claude/c--Users-fmedi-OneDrive-Documentos-Cotizador/48cd4d2b-fb62-4f6a-9199-1a61c1eff815/scratchpad/**)",
+      "Bash(curl -s http://localhost:4000/api/maquinas)"
+    ]
+  }
+}
