@@ -130,6 +130,7 @@ function ModalArticulos({ articulos, onSelect, onClose }) {
           <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
             <thead>
               <tr style={{ background:'var(--bg)', position:'sticky', top:0, zIndex:1 }}>
+                <th style={{ padding:'7px 12px', borderBottom:'1px solid var(--border)' }}></th>
                 {['Nombre','Categoría','Precio','Unidad'].map((h,i) => (
                   <th key={h} style={{ padding:'7px 12px', textAlign:i>=2?'right':'left', fontWeight:500, fontSize:11, color:'var(--muted)', borderBottom:'1px solid var(--border)' }}>{h}</th>
                 ))}
@@ -137,10 +138,15 @@ function ModalArticulos({ articulos, onSelect, onClose }) {
             </thead>
             <tbody>
               {filtrados.length === 0
-                ? <tr><td colSpan={4} style={{ textAlign:'center', padding:24, color:'var(--muted)', fontSize:13 }}>Sin resultados.</td></tr>
+                ? <tr><td colSpan={5} style={{ textAlign:'center', padding:24, color:'var(--muted)', fontSize:13 }}>Sin resultados.</td></tr>
                 : filtrados.map(a => (
                   <tr key={a._id} onClick={() => selectRow(a)}
                     style={{ cursor:'pointer', borderBottom:'1px solid var(--border)', background: sel?._id===a._id ? 'var(--blue-bg,#eef4fd)' : 'transparent', transition:'background .1s' }}>
+                    <td style={{ padding:'6px 12px', width:36 }}>
+                      {a.imagen
+                        ? <img src={a.imagen} alt="" style={{ width:28, height:28, objectFit:'cover', borderRadius:'var(--radius-sm)', border:'1px solid var(--border)' }}/>
+                        : <div style={{ width:28, height:28, borderRadius:'var(--radius-sm)', background:'var(--bg)', border:'1px solid var(--border)' }}/>}
+                    </td>
                     <td style={{ padding:'8px 12px', fontWeight: sel?._id===a._id?600:400 }}>{a.nombre}</td>
                     <td style={{ padding:'8px 12px', color:'var(--muted)' }}>{a.categoria||'—'}</td>
                     <td style={{ padding:'8px 12px', textAlign:'right', fontFamily:'var(--mono)', fontSize:12 }}>{fmt(a.precio)}</td>

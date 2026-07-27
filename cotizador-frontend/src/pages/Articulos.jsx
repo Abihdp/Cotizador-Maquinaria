@@ -2,9 +2,9 @@ import { useState, useEffect, useRef } from 'react'
 import { Plus, Upload, Download, Pencil, Trash2, Search, ChevronDown, History, ChevronRight, AlertTriangle, CheckCircle2, RefreshCw, X, AlertOctagon } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { articulosApi } from '../lib/api.js'
-import { fmt } from '../lib/utils.js'
+import { fmt, resizeImageToDataUrl } from '../lib/utils.js'
 
-const EMPTY = { codigo: '', nombre: '', categoria: '', precio: '', unidad: 'unidad', notas: '' }
+const EMPTY = { codigo: '', nombre: '', categoria: '', precio: '', unidad: 'unidad', notas: '', imagen: '' }
 const CATEGORIAS_ART = ['Repuestos', 'Estructuras', 'Tapizados', 'Pintura']
 const UNIDADES = ['mt', 'kg', 'unidad', 'm2', 'cm','lt','ml']
 const POR_PAGINA = 12
@@ -88,9 +88,20 @@ export default function Articulos() {
   const openNew  = () => { setEditId(null); setForm(EMPTY); setModal(true) }
   const openEdit = (a) => {
     setEditId(a._id)
-    setForm({ codigo: a.codigo, nombre: a.nombre, categoria: a.categoria, precio: a.precio, unidad: a.unidad, notas: a.notas })
+    setForm({ codigo: a.codigo, nombre: a.nombre, categoria: a.categoria, precio: a.precio, unidad: a.unidad, notas: a.notas, imagen: a.imagen || '' })
     setModal(true)
   }
+
+  const handleImagen = async (e) => {
+    const file = e.target.files[0]; e.target.value = ''
+    if (!file) return
+    if (!file.type.startsWith('image/')) return toast.error('El archivo debe ser una imagen')
+    try {
+      const dataUrl = await resizeImageToDataUrl(file)
+      setForm(f => ({ ...f, imagen: dataUrl }))
+    } catch { toast.error('No se pudo procesar la imagen') }
+  }
+  const removeImagen = () => setForm(f => ({ ...f, imagen: '' }))
 
   const save = async () => {
     if (!form.nombre.trim()) return toast.error('El nombre es obligatorio')
@@ -287,6 +298,7 @@ export default function Articulos() {
         <table>
           <thead>
             <tr>
+              <th></th>
               <th>Código</th><th>Nombre</th><th>Categoría</th>
               <th style={{ textAlign: 'right' }}>Precio unitario</th>
               <th>Unidad</th><th></th>
@@ -294,11 +306,16 @@ export default function Articulos() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={6} className="empty"><span className="spinner" /></td></tr>
+              <tr><td colSpan={7} className="empty"><span className="spinner" /></td></tr>
             ) : visibles.length === 0 ? (
-              <tr><td colSpan={6} className="empty">Sin resultados.</td></tr>
+              <tr><td colSpan={7} className="empty">Sin resultados.</td></tr>
             ) : visibles.map(a => (
               <tr key={a._id}>
+                <td style={{ width: 40 }}>
+                  {a.imagen
+                    ? <img src={a.imagen} alt="" style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }} />
+                    : <div style={{ width: 32, height: 32, borderRadius: 'var(--radius-sm)', background: 'var(--bg)', border: '1px solid var(--border)' }} />}
+                </td>
                 <td style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--muted)' }}>{a.codigo || '—'}</td>
                 <td style={{ fontWeight: 500 }}>{a.nombre}</td>
                 <td>{a.categoria ? <span className="badge badge-cat">{a.categoria}</span> : '—'}</td>
@@ -376,6 +393,23 @@ export default function Articulos() {
             <div className="form-row">
               <label className="form-label">Notas</label>
               <textarea className="input" value={form.notas} onChange={field('notas')} placeholder="Opcional" />
+            </div>
+            <div className="form-row">
+              <label className="form-label">Foto</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                {form.imagen && (
+                  <img src={form.imagen} alt="" style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }} />
+                )}
+                <div className="file-input-wrap">
+                  <button type="button" className="btn sm">
+                    <Upload size={13} /> {form.imagen ? 'Cambiar foto' : 'Subir foto'}
+                  </button>
+                  <input type="file" accept="image/*" onChange={handleImagen} />
+                </div>
+                {form.imagen && (
+                  <button type="button" className="btn sm danger" onClick={removeImagen}><Trash2 size={12} /> Quitar</button>
+                )}
+              </div>
             </div>
             <div className="form-actions">
               <button className="btn" onClick={() => setModal(false)}>Cancelar</button>

@@ -7,6 +7,7 @@ const articuloSchema = new mongoose.Schema({
   precio:    { type: Number, required: true, min: 0 },
   unidad:    { type: String, default: 'unidad' },
   notas:     { type: String, default: '' },
+  imagen:    { type: String, default: '' }, // data URI (base64) de la foto del artículo
 }, { timestamps: true })
 
 export default mongoose.model('Articulo', articuloSchema)
