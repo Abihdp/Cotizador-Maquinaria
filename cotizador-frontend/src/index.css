@@ -149,6 +149,9 @@ select.input { cursor: pointer; }
   box-shadow: var(--shadow);
 }
 
+.table-scroll { overflow-x: auto; }
+.table-scroll table { min-width: 640px; }
+
 table { width: 100%; border-collapse: collapse; }
 
 thead th {

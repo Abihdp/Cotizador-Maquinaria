@@ -390,6 +390,7 @@ export default function Maquinas() {
       </div>
 
       <div className="card">
+        <div className="table-scroll">
         <table>
           <thead><tr>
             <th></th>
@@ -430,6 +431,7 @@ export default function Maquinas() {
             })}
           </tbody>
         </table>
+        </div>
         {totalPags>1 && (
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', borderTop:'1px solid var(--border)', fontSize:13 }}>
             <span style={{color:'var(--muted)'}}>Mostrando {(pagActual-1)*POR_PAGINA+1}–{Math.min(pagActual*POR_PAGINA,filtrados.length)} de {filtrados.length}</span>

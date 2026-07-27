@@ -283,6 +283,7 @@ export default function Articulos() {
       </div>
 
       <div className="card">
+        <div className="table-scroll">
         <table>
           <thead>
             <tr>
@@ -313,6 +314,7 @@ export default function Articulos() {
             ))}
           </tbody>
         </table>
+        </div>
 
         {totalPags > 1 && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderTop: '1px solid var(--border)', fontSize: 13 }}>
