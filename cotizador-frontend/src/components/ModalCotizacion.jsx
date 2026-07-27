@@ -101,6 +101,7 @@ export default function ModalCotizacion({ maquina, onClose }) {
   </div>
 
   <div class="seccion">
+    ${maquina.imagen ? `<img src="${maquina.imagen}" style="width:100%;max-height:280px;object-fit:cover;border-radius:10px;margin-bottom:16px;" />` : ''}
     <div class="maquina-nombre">${maquina.nombre}</div>
     ${maquina.categoria ? `<span class="maquina-cat">${maquina.categoria}</span>` : ''}
     ${maquina.notas ? `<p style="margin-top:10px;font-size:13px;color:#6b6860;">${maquina.notas}</p>` : ''}

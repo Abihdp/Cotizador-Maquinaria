@@ -16,6 +16,7 @@ const maquinaSchema = new mongoose.Schema({
   categoria:   { type: String, default: '' },
   margen:      { type: Number, default: 30, min: 0 },
   notas:       { type: String, default: '' },
+  imagen:      { type: String, default: '' }, // data URI (base64) de la foto de la máquina
   componentes: [componenteSchema],
   recursosHora: { type: [recursoHoraSchema], default: [] },
 

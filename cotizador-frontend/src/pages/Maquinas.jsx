@@ -3,7 +3,7 @@ import { Plus, Pencil, Trash2, Eye, Search, X, ChevronDown, Package, Upload, Ref
 import * as XLSX from 'xlsx'
 import toast from 'react-hot-toast'
 import { articulosApi, maquinasApi, configApi } from '../lib/api.js'
-import { fmt, calcCostoTotal, calcVenta } from '../lib/utils.js'
+import { fmt, calcCostoTotal, calcVenta, resizeImageToDataUrl } from '../lib/utils.js'
 import ModalRecotizacion from '../components/ModalRecotizacion.jsx'
 import ModalListaMateriales from '../components/ModalListaMateriales.jsx'
 import ModalVariacion from '../components/ModalVariacion.jsx'
@@ -21,7 +21,7 @@ const mkRecursos = (tarifasConfig = []) =>
   })
 
 const EMPTY_MAQ = (cfg = {}) => ({
-  nombre: '', categoria: '', margen: 30, notas: '',
+  nombre: '', categoria: '', margen: 30, notas: '', imagen: '',
   componentes: [],
   recursosHora:      mkRecursos(cfg.tarifas || []),
   consumibles:       0,
@@ -283,7 +283,7 @@ export default function Maquinas() {
     const huerfanos = m.componentes.length - componentesValidos.length
     if (huerfanos > 0) toast.error(`${huerfanos} material${huerfanos !== 1 ? 'es' : ''} se quitaron de esta máquina porque el artículo ya no existe`, { duration: 4000 })
     setForm({
-      nombre: m.nombre, categoria: m.categoria, margen: m.margen, notas: m.notas,
+      nombre: m.nombre, categoria: m.categoria, margen: m.margen, notas: m.notas, imagen: m.imagen || '',
       componentes: componentesValidos.map(c => ({ articulo: c.articulo, cantidad: c.cantidad })),
       recursosHora:      merged,
       consumibles:       m.consumibles       || 0,
@@ -306,6 +306,17 @@ export default function Maquinas() {
     return { ...f, componentes: [...f.componentes, { articulo: art, cantidad: qty }] }
   })
 
+  const handleImagen = async (e) => {
+    const file = e.target.files[0]; e.target.value = ''
+    if (!file) return
+    if (!file.type.startsWith('image/')) return toast.error('El archivo debe ser una imagen')
+    try {
+      const dataUrl = await resizeImageToDataUrl(file)
+      setForm(f => ({ ...f, imagen: dataUrl }))
+    } catch { toast.error('No se pudo procesar la imagen') }
+  }
+  const removeImagen = () => setForm(f => ({ ...f, imagen: '' }))
+
   const removeComp     = (i) => setForm(f => ({ ...f, componentes: f.componentes.filter((_,j) => j!==i) }))
   const updateCantidad = (i, val) => setForm(f => { const c=[...f.componentes]; c[i]={...c[i],cantidad:val===''?'':Number(val)}; return {...f,componentes:c} })
   const updateHoras  = (i, val) => setForm(f => { const r=[...f.recursosHora]; r[i]={...r[i],horas:val===''?'':Number(val)}; return {...f,recursosHora:r} })
@@ -319,7 +330,7 @@ export default function Maquinas() {
     setSaving(true)
     try {
       const payload = {
-        nombre: form.nombre, categoria: form.categoria, margen: Number(form.margen), notas: form.notas,
+        nombre: form.nombre, categoria: form.categoria, margen: Number(form.margen), notas: form.notas, imagen: form.imagen || '',
         componentes:  form.componentes.map(c => ({ articulo: c.articulo._id, cantidad: c.cantidad })),
         recursosHora: form.recursosHora.map(r => ({ nombre:r.nombre, horas:Number(r.horas)||0, tarifa:Number(r.tarifa)||0 })),
         consumibles:       Number(form.consumibles)       || 0,
@@ -381,6 +392,7 @@ export default function Maquinas() {
       <div className="card">
         <table>
           <thead><tr>
+            <th></th>
             <th>Nombre</th><th>Categoría</th>
             <th style={{textAlign:'right'}}>Materiales</th>
             <th style={{textAlign:'right'}}>M. de obra</th>
@@ -390,11 +402,16 @@ export default function Maquinas() {
             <th></th>
           </tr></thead>
           <tbody>
-            {loading ? <tr><td colSpan={8} className="empty"><span className="spinner"/></td></tr>
-            : visibles.length===0 ? <tr><td colSpan={8} className="empty">Sin resultados.</td></tr>
+            {loading ? <tr><td colSpan={9} className="empty"><span className="spinner"/></td></tr>
+            : visibles.length===0 ? <tr><td colSpan={9} className="empty">Sin resultados.</td></tr>
             : visibles.map(m => {
               const c = calcCostoTotal(m); const v = calcVenta(c.total, m.margen)
               return <tr key={m._id}>
+                <td style={{width:40}}>
+                  {m.imagen
+                    ? <img src={m.imagen} alt="" style={{width:32,height:32,objectFit:'cover',borderRadius:'var(--radius-sm)',border:'1px solid var(--border)'}}/>
+                    : <div style={{width:32,height:32,borderRadius:'var(--radius-sm)',background:'var(--bg)',border:'1px solid var(--border)'}}/>}
+                </td>
                 <td style={{fontWeight:500}}>{m.nombre}</td>
                 <td>{m.categoria?<span className="badge badge-cat">{m.categoria}</span>:'—'}</td>
                 <td style={{textAlign:'right',fontFamily:'var(--mono)',fontSize:12}}>{fmt(c.materiales)}</td>
@@ -481,6 +498,23 @@ export default function Maquinas() {
               <div className="form-row" style={{gridColumn:'1/-1'}}>
                 <label className="form-label">Notas</label>
                 <textarea className="input" value={form.notas} onChange={field('notas')} placeholder="Opcional"/>
+              </div>
+              <div className="form-row" style={{gridColumn:'1/-1'}}>
+                <label className="form-label">Foto</label>
+                <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+                  {form.imagen && (
+                    <img src={form.imagen} alt="" style={{ width:72, height:72, objectFit:'cover', borderRadius:'var(--radius-sm)', border:'1px solid var(--border)' }}/>
+                  )}
+                  <div className="file-input-wrap">
+                    <button type="button" className="btn sm">
+                      <Upload size={13}/> {form.imagen ? 'Cambiar foto' : 'Subir foto'}
+                    </button>
+                    <input type="file" accept="image/*" onChange={handleImagen}/>
+                  </div>
+                  {form.imagen && (
+                    <button type="button" className="btn sm danger" onClick={removeImagen}><Trash2 size={12}/> Quitar</button>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -637,6 +671,9 @@ export default function Maquinas() {
                 <span className="modal-title">{detail.nombre}</span>
                 <button className="modal-close" onClick={()=>setModal(false)}>×</button>
               </div>
+              {detail.imagen && (
+                <img src={detail.imagen} alt={detail.nombre} style={{ width:'100%', maxHeight:260, objectFit:'cover', borderRadius:'var(--radius-sm)', border:'1px solid var(--border)', marginBottom:12 }}/>
+              )}
               <div className="detail-grid">
                 <div className="detail-card"><div className="detail-label">Categoría</div><div className="detail-val">{detail.categoria||'—'}</div></div>
                 <div className="detail-card"><div className="detail-label">Margen</div><div className="detail-val">{detail.margen}%</div></div>
