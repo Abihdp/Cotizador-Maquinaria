@@ -27,8 +27,9 @@ function calcCosto(maq) {
   const manoObra    = (maq.recursosHora || []).reduce((s, r) => s + (r.horas || 0) * (r.tarifa || 0), 0)
   const consumibles = maq.consumibles || 0
   const placas      = (maq.placaKg || 0) * (maq.placaKgPrice || 0)
-  const flete       = maq.flete || 0
-  const subtotal    = materiales + manoObra + consumibles + placas + flete
+  const costoBase   = materiales + manoObra + consumibles + placas
+  const flete       = costoBase * ((maq.pctFlete || 0) / 100)
+  const subtotal    = costoBase + flete
   const impuestos   = subtotal * ((maq.pctImpuestos || 0) / 100)
   const garantia    = subtotal * ((maq.pctGarantia  || 0) / 100)
   return { materiales, manoObra, consumibles, placas, flete, impuestos, garantia, total: subtotal + impuestos + garantia }

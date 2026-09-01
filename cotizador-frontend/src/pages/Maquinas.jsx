@@ -27,7 +27,7 @@ const EMPTY_MAQ = (cfg = {}) => ({
   consumibles:       0,
   placaKg:           0,
   placaKgPrice:      cfg.precioPlacaKg     || 0,
-  flete: 0, pctImpuestos: 0, pctGarantia: 0,
+  pctFlete: 0, pctImpuestos: 0, pctGarantia: 0,
 })
 
 /* ── Modal selector de artículos ── */
@@ -295,7 +295,7 @@ export default function Maquinas() {
       consumibles:       m.consumibles       || 0,
       placaKg:           m.placaKg           || 0,
       placaKgPrice:      cfg.precioPlacaKg   || m.placaKgPrice    || 0,
-      flete: m.flete||0, pctImpuestos: m.pctImpuestos||0, pctGarantia: m.pctGarantia||0,
+      pctFlete: m.pctFlete||0, pctImpuestos: m.pctImpuestos||0, pctGarantia: m.pctGarantia||0,
     })
     setModal('edit')
   }
@@ -342,7 +342,7 @@ export default function Maquinas() {
         consumibles:       Number(form.consumibles)       || 0,
         placaKg:           Number(form.placaKg)           || 0,
         placaKgPrice:      Number(form.placaKgPrice)      || 0,
-        flete:             Number(form.flete)             || 0,
+        pctFlete:          Number(form.pctFlete)          || 0,
         pctImpuestos:      Number(form.pctImpuestos)      || 0,
         pctGarantia:       Number(form.pctGarantia)       || 0,
       }
@@ -627,8 +627,8 @@ export default function Maquinas() {
             <SectionLabel>Otros costos</SectionLabel>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12}}>
               <div className="form-row">
-                <label className="form-label">Flete ($)</label>
-                <input className="input" type="number" min="0" step="100" value={form.flete} onChange={field('flete')} placeholder="0"/>
+                <label className="form-label">Flete (%)</label>
+                <input className="input" type="number" min="0" max="100" step="0.5" value={form.pctFlete} onChange={field('pctFlete')} placeholder="0"/>
               </div>
               <div className="form-row">
                 <label className="form-label">Impuestos (%)</label>
@@ -646,7 +646,7 @@ export default function Maquinas() {
               <ResumenFila label="Mano de obra"                              val={costs.manoObra}/>
               <ResumenFila label="Consumibles"                               val={costs.consumibles}/>
               <ResumenFila label="Placas de corte"                           val={costs.placas}/>
-              <ResumenFila label="Flete"                                     val={costs.flete}/>
+              <ResumenFila label={`Flete (${form.pctFlete}%)`}               val={costs.flete}/>
               <ResumenFila label={`Impuestos (${form.pctImpuestos}%)`}       val={costs.impuestos}/>
               <ResumenFila label={`Garantía / postventa (${form.pctGarantia}%)`} val={costs.garantia}/>
               <ResumenFila label="Costo total"   val={costs.total} bold/>
@@ -722,7 +722,7 @@ export default function Maquinas() {
                 <ResumenFila label="Mano de obra"    val={c.manoObra}/>
                 {c.consumibles>0 && <ResumenFila label="Consumibles"    val={c.consumibles}/>}
                 {c.placas>0      && <ResumenFila label="Placas de corte" val={c.placas}/>}
-                {c.flete>0       && <ResumenFila label="Flete"           val={c.flete}/>}
+                {c.flete>0       && <ResumenFila label={`Flete (${detail.pctFlete}%)`} val={c.flete}/>}
                 <ResumenFila label={`Impuestos (${detail.pctImpuestos}%)`}       val={c.impuestos}/>
                 <ResumenFila label={`Garantía (${detail.pctGarantia}%)`}         val={c.garantia}/>
                 <ResumenFila label="Costo total"    val={c.total} bold/>

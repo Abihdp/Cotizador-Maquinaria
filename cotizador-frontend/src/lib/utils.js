@@ -12,11 +12,13 @@ export const calcCostoTotal = (maq) => {
   const manoObra    = calcManoObra(maq.recursosHora)
   const consumibles = Number(maq.consumibles)       || 0
   const placas      = (Number(maq.placaKg)          || 0) * (Number(maq.placaKgPrice) || 0)
-  const flete       = Number(maq.flete)             || 0
+  const pctFlete    = Number(maq.pctFlete)          || 0
   const pctImp      = Number(maq.pctImpuestos)      || 0
   const pctGar      = Number(maq.pctGarantia)       || 0
- 
-  const subtotal  = materiales + manoObra + consumibles + placas + flete
+
+  const costoBase = materiales + manoObra + consumibles + placas
+  const flete     = costoBase * (pctFlete / 100)
+  const subtotal  = costoBase + flete
   const impuestos = subtotal * (pctImp / 100)
   const garantia  = subtotal * (pctGar  / 100)
   const total     = subtotal + impuestos + garantia

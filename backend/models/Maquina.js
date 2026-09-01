@@ -27,7 +27,7 @@ const maquinaSchema = new mongoose.Schema({
   placaKg:           { type: Number, default: 0, min: 0 }, // kg de placa
   placaKgPrice:      { type: Number, default: 0, min: 0 }, // precio/kg al momento de guardar
 
-  flete:        { type: Number, default: 0, min: 0 },
+  pctFlete:     { type: Number, default: 0, min: 0 },
   pctImpuestos: { type: Number, default: 0, min: 0 },
   pctGarantia:  { type: Number, default: 0, min: 0 },
 
