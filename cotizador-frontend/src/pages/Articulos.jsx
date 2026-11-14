@@ -4,12 +4,18 @@ import toast from 'react-hot-toast'
 import { articulosApi } from '../lib/api.js'
 import { fmt, resizeImageToDataUrl } from '../lib/utils.js'
 
-const EMPTY = { codigo: '', nombre: '', categoria: '', precio: '', unidad: 'unidad', notas: '', imagen: '' }
+const EMPTY = { codigo: '', nombre: '', categoria: '', precio: '', unidad: 'unidad', notas: '', imagen: '', porBarra: false, precioBarra: '', largoBarra: 6 }
 const CATEGORIAS_ART = ['Repuestos', 'Estructuras', 'Tapizados', 'Pintura']
 const UNIDADES = ['mt', 'kg', 'unidad', 'm2', 'cm','lt','ml']
 const POR_PAGINA = 12
 
-const CAMPO_LABEL = { codigo: 'Código', nombre: 'Nombre', categoria: 'Categoría', precio: 'Precio', unidad: 'Unidad', notas: 'Notas' }
+const CAMPO_LABEL = { codigo: 'Código', nombre: 'Nombre', categoria: 'Categoría', precio: 'Precio', unidad: 'Unidad', notas: 'Notas', precioBarra: 'Precio barra', largoBarra: 'Largo barra' }
+
+// Precio por metro a partir del precio de la barra completa
+const precioPorMetro = (precioBarra, largoBarra) => {
+  const pb = parseFloat(precioBarra), lb = parseFloat(largoBarra) || 6
+  return pb > 0 ? Math.round((pb / lb) * 100) / 100 : 0
+}
 
 function fmtFecha(iso) {
   if (!iso) return ''
@@ -88,7 +94,10 @@ export default function Articulos() {
   const openNew  = () => { setEditId(null); setForm(EMPTY); setModal(true) }
   const openEdit = (a) => {
     setEditId(a._id)
-    setForm({ codigo: a.codigo, nombre: a.nombre, categoria: a.categoria, precio: a.precio, unidad: a.unidad, notas: a.notas, imagen: a.imagen || '' })
+    setForm({
+      codigo: a.codigo, nombre: a.nombre, categoria: a.categoria, precio: a.precio, unidad: a.unidad, notas: a.notas, imagen: a.imagen || '',
+      porBarra: a.precioBarra > 0, precioBarra: a.precioBarra || '', largoBarra: a.largoBarra || 6,
+    })
     setModal(true)
   }
 
@@ -105,12 +114,23 @@ export default function Articulos() {
 
   const save = async () => {
     if (!form.nombre.trim()) return toast.error('El nombre es obligatorio')
-    const precio = parseFloat(form.precio)
-    if (isNaN(precio) || precio < 0) return toast.error('Precio inválido')
+    const { porBarra, ...datos } = form
+    let payload
+    if (porBarra) {
+      const precioBarra = parseFloat(form.precioBarra)
+      const largoBarra  = parseFloat(form.largoBarra)
+      if (isNaN(precioBarra) || precioBarra <= 0) return toast.error('Precio de barra inválido')
+      if (isNaN(largoBarra)  || largoBarra  <= 0) return toast.error('Largo de barra inválido')
+      payload = { ...datos, precioBarra, largoBarra, precio: precioPorMetro(precioBarra, largoBarra), unidad: 'mt' }
+    } else {
+      const precio = parseFloat(form.precio)
+      if (isNaN(precio) || precio < 0) return toast.error('Precio inválido')
+      payload = { ...datos, precio, precioBarra: null }
+    }
     setSaving(true)
     try {
-      if (editId) await articulosApi.update(editId, { ...form, precio })
-      else        await articulosApi.create({ ...form, precio })
+      if (editId) await articulosApi.update(editId, payload)
+      else        await articulosApi.create(payload)
       toast.success(editId ? 'Artículo actualizado' : 'Artículo creado')
       setModal(false)
       load()
@@ -319,7 +339,14 @@ export default function Articulos() {
                 <td style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--muted)' }}>{a.codigo || '—'}</td>
                 <td style={{ fontWeight: 500 }}>{a.nombre}</td>
                 <td>{a.categoria ? <span className="badge badge-cat">{a.categoria}</span> : '—'}</td>
-                <td style={{ textAlign: 'right', fontFamily: 'var(--mono)', fontWeight: 500 }}>{fmt(a.precio)}</td>
+                <td style={{ textAlign: 'right', fontFamily: 'var(--mono)', fontWeight: 500 }}>
+                  {fmt(a.precio)}
+                  {a.precioBarra > 0 && (
+                    <div style={{ fontSize: 11, fontWeight: 400, color: 'var(--muted)' }}>
+                      barra {a.largoBarra || 6} m: {fmt(a.precioBarra)}
+                    </div>
+                  )}
+                </td>
                 <td style={{ color: 'var(--muted)' }}>{a.unidad || '—'}</td>
                 <td>
                   <div className="row-actions">
@@ -378,18 +405,44 @@ export default function Articulos() {
               <label className="form-label">Nombre *</label>
               <input className="input" value={form.nombre} onChange={field('nombre')} placeholder="Ej: Tubo de acero 1 pulgada" />
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div className="form-row">
-                <label className="form-label">Precio unitario *</label>
-                <input className="input" type="number" min="0" step="0.01" value={form.precio} onChange={field('precio')} placeholder="0.00" />
-              </div>
-              <div className="form-row">
-                <label className="form-label">Unidad</label>
-                <select className="input" value={form.unidad} onChange={field('unidad')}>
-                  {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
-                </select>
-              </div>
+            <div className="form-row">
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+                <input type="checkbox" checked={form.porBarra}
+                  onChange={e => setForm(f => ({ ...f, porBarra: e.target.checked, unidad: e.target.checked ? 'mt' : f.unidad }))} />
+                Se compra por barra (caños y perfiles)
+              </label>
             </div>
+            {form.porBarra ? (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                <div className="form-row">
+                  <label className="form-label">Precio de la barra *</label>
+                  <input className="input" type="number" min="0" step="0.01" value={form.precioBarra} onChange={field('precioBarra')} placeholder="0.00" />
+                </div>
+                <div className="form-row">
+                  <label className="form-label">Largo de la barra (m)</label>
+                  <input className="input" type="number" min="0.1" step="0.1" value={form.largoBarra} onChange={field('largoBarra')} />
+                </div>
+                <div className="form-row">
+                  <label className="form-label">Precio por metro</label>
+                  <div className="input" style={{ fontFamily: 'var(--mono)', background: 'var(--bg)', display: 'flex', alignItems: 'center' }}>
+                    {fmt(precioPorMetro(form.precioBarra, form.largoBarra))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div className="form-row">
+                  <label className="form-label">Precio unitario *</label>
+                  <input className="input" type="number" min="0" step="0.01" value={form.precio} onChange={field('precio')} placeholder="0.00" />
+                </div>
+                <div className="form-row">
+                  <label className="form-label">Unidad</label>
+                  <select className="input" value={form.unidad} onChange={field('unidad')}>
+                    {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
+                  </select>
+                </div>
+              </div>
+            )}
             <div className="form-row">
               <label className="form-label">Notas</label>
               <textarea className="input" value={form.notas} onChange={field('notas')} placeholder="Opcional" />

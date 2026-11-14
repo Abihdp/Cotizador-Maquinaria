@@ -9,7 +9,25 @@ import ArticuloHistorial from '../models/ArticuloHistorial.js'
 const router = Router()
 const upload = multer({ storage: multer.memoryStorage() })
 
-const CAMPOS_DIFF = ['codigo', 'nombre', 'categoria', 'precio', 'unidad', 'notas']
+const CAMPOS_DIFF = ['codigo', 'nombre', 'categoria', 'precio', 'unidad', 'notas', 'precioBarra', 'largoBarra']
+
+// Si el artículo se compra por barra, el precio por metro sale de dividir el
+// precio de la barra por su largo (6 m por defecto) y la unidad pasa a "mt".
+function aplicarPrecioBarra(data) {
+  const precioBarra = Number(data.precioBarra)
+  if (data.precioBarra === null || data.precioBarra === '' || data.precioBarra === undefined || !(precioBarra > 0)) {
+    if (data.precioBarra !== undefined) data.precioBarra = null
+    return data
+  }
+  const largo = Number(data.largoBarra) > 0 ? Number(data.largoBarra) : 6
+  data.precioBarra = precioBarra
+  data.largoBarra  = largo
+  data.precio      = Math.round((precioBarra / largo) * 100) / 100
+  data.unidad      = 'mt'
+  return data
+}
+
+const parseNum = (v) => (v === undefined || v === null || v === '') ? null : parseFloat(String(v).replace(',', '.'))
 
 function calcDiff(anterior, siguiente) {
   return CAMPOS_DIFF
@@ -90,34 +108,49 @@ function parseExcelBuffer(buffer, opts = {}) {
     const row = rows[i]
     if (!row || row.every(c => c === undefined || c === null || c === '')) continue
 
-    const [codigo, nombre, categoria, precioRaw, unidad, notas] = row
+    // Columnas: Código | Nombre | Categoría | Precio | Unidad | Notas | (Cantidad) | Precio barra | Largo barra (m)
+    // La columna G queda para la cantidad del importador de máquinas, por eso la barra va en H e I.
+    const [codigo, nombre, categoria, precioRaw, unidad, notas, , precioBarraRaw, largoBarraRaw] = row
+    const precioBarra = parseNum(precioBarraRaw)
+    const largoBarra  = parseNum(largoBarraRaw)
+    if (precioBarra !== null && (isNaN(precioBarra) || precioBarra < 0)) {
+      errores.push(`Fila ${excelRow} ("${nombre}"): precio de barra inválido — "${precioBarraRaw}".`)
+      continue
+    }
+    if (largoBarra !== null && (isNaN(largoBarra) || largoBarra <= 0)) {
+      errores.push(`Fila ${excelRow} ("${nombre}"): largo de barra inválido — "${largoBarraRaw}".`)
+      continue
+    }
+    const porBarra = precioBarra !== null && precioBarra > 0
 
     if (!nombre || String(nombre).trim() === '') {
       errores.push(`Fila ${excelRow}: falta el nombre del artículo.`)
       continue
     }
-    if (precioRaw === undefined || precioRaw === null || precioRaw === '') {
+    if (!porBarra && (precioRaw === undefined || precioRaw === null || precioRaw === '')) {
       errores.push(`Fila ${excelRow} ("${nombre}"): falta el precio.`)
       continue
     }
-    const precio = parseFloat(String(precioRaw).replace(',', '.'))
+    const precio = porBarra ? 0 : parseFloat(String(precioRaw).replace(',', '.'))
     if (isNaN(precio) || precio < 0) {
       errores.push(`Fila ${excelRow} ("${nombre}"): precio inválido — "${precioRaw}".`)
       continue
     }
     if (!categoria || String(categoria).trim() === '')
       advertencias.push(`Fila ${excelRow} ("${nombre}"): sin categoría, se dejará en blanco.`)
-    if (!unidad || String(unidad).trim() === '')
+    if (!porBarra && (!unidad || String(unidad).trim() === ''))
       advertencias.push(`Fila ${excelRow} ("${nombre}"): sin unidad, se usará "unidad" por defecto.`)
 
-    filas.push({
+    filas.push(aplicarPrecioBarra({
       codigo:    codigo    ? String(codigo).trim()    : '',
       nombre:    String(nombre).trim(),
       categoria: categoria ? String(categoria).trim() : '',
       precio,
       unidad:    unidad    ? String(unidad).trim()    : 'unidad',
       notas:     notas     ? String(notas).trim()     : '',
-    })
+      precioBarra: porBarra ? precioBarra : null,
+      largoBarra:  largoBarra || 6,
+    }))
   }
 
   return { filas, errores, advertencias, total: endIdx - startIdx }
@@ -156,8 +189,9 @@ router.get('/export/excel', async (req, res) => {
   try {
     const articulos = await Articulo.find().sort({ nombre: 1 })
     const data = [
-      ['Código', 'Nombre', 'Categoría', 'Precio', 'Unidad', 'Notas'],
-      ...articulos.map(a => [a.codigo, a.nombre, a.categoria, a.precio, a.unidad, a.notas])
+      ['Código', 'Nombre', 'Categoría', 'Precio', 'Unidad', 'Notas', 'Cantidad', 'Precio barra', 'Largo barra (m)'],
+      ...articulos.map(a => [a.codigo, a.nombre, a.categoria, a.precio, a.unidad, a.notas, '',
+        a.precioBarra || '', a.precioBarra ? (a.largoBarra || 6) : ''])
     ]
     const ws = XLSX.utils.aoa_to_sheet(data)
     const wb = XLSX.utils.book_new()
@@ -252,7 +286,7 @@ router.get('/:id', async (req, res) => {
 // POST create
 router.post('/', async (req, res) => {
   try {
-    const art = await Articulo.create(req.body)
+    const art = await Articulo.create(aplicarPrecioBarra({ ...req.body }))
     await ArticuloHistorial.create({
       tipo: 'creado',
       articuloNombre: art.nombre,
@@ -267,10 +301,11 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const anterior = await Articulo.findById(req.params.id)
-    const art = await Articulo.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true })
+    const datos = aplicarPrecioBarra({ ...req.body })
+    const art = await Articulo.findByIdAndUpdate(req.params.id, datos, { new: true, runValidators: true })
     if (!art) return res.status(404).json({ error: 'No encontrado' })
 
-    const cambios = anterior ? calcDiff(anterior.toObject(), req.body) : []
+    const cambios = anterior ? calcDiff(anterior.toObject(), datos) : []
     await ArticuloHistorial.create({
       tipo: 'actualizado',
       articuloNombre: art.nombre,
