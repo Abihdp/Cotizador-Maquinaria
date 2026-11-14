@@ -1,15 +1,22 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Upload, Download, Pencil, Trash2, Search, ChevronDown, History, ChevronRight, AlertTriangle, CheckCircle2, RefreshCw, X, AlertOctagon } from 'lucide-react'
+import { Plus, Upload, Download, Pencil, Trash2, Search, ChevronDown, History, ChevronRight, AlertTriangle, CheckCircle2, RefreshCw, X, AlertOctagon, PaintBucket } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { articulosApi } from '../lib/api.js'
-import { fmt, resizeImageToDataUrl } from '../lib/utils.js'
+import { fmt, resizeImageToDataUrl, detectarPerfil, m2PorMetro } from '../lib/utils.js'
 
-const EMPTY = { codigo: '', nombre: '', categoria: '', precio: '', unidad: 'unidad', notas: '', imagen: '', porBarra: false, precioBarra: '', largoBarra: 6 }
+const EMPTY = { codigo: '', nombre: '', categoria: '', precio: '', unidad: 'unidad', notas: '', imagen: '', porBarra: false, precioBarra: '', largoBarra: 6, perfil: '', ancho: '', alto: '' }
 const CATEGORIAS_ART = ['Repuestos', 'Estructuras', 'Tapizados', 'Pintura']
 const UNIDADES = ['mt', 'kg', 'unidad', 'm2', 'cm','lt','ml']
 const POR_PAGINA = 12
 
-const CAMPO_LABEL = { codigo: 'Código', nombre: 'Nombre', categoria: 'Categoría', precio: 'Precio', unidad: 'Unidad', notas: 'Notas', precioBarra: 'Precio barra', largoBarra: 'Largo barra' }
+const CAMPO_LABEL = { codigo: 'Código', nombre: 'Nombre', categoria: 'Categoría', precio: 'Precio', unidad: 'Unidad', notas: 'Notas', precioBarra: 'Precio barra', largoBarra: 'Largo barra', perfil: 'Perfil', ancho: 'Ancho / Ø', alto: 'Alto / espesor' }
+
+const PERFILES = [
+  { value: '',            label: 'No se pinta' },
+  { value: 'rectangular', label: 'Caño rectangular / cuadrado' },
+  { value: 'redondo',     label: 'Caño redondo' },
+  { value: 'planchuela',  label: 'Planchuela' },
+]
 
 // Precio por metro a partir del precio de la barra completa
 const precioPorMetro = (precioBarra, largoBarra) => {
@@ -97,6 +104,7 @@ export default function Articulos() {
     setForm({
       codigo: a.codigo, nombre: a.nombre, categoria: a.categoria, precio: a.precio, unidad: a.unidad, notas: a.notas, imagen: a.imagen || '',
       porBarra: a.precioBarra > 0, precioBarra: a.precioBarra || '', largoBarra: a.largoBarra || 6,
+      perfil: a.perfil || '', ancho: a.ancho || '', alto: a.alto || '',
     })
     setModal(true)
   }
@@ -114,7 +122,9 @@ export default function Articulos() {
 
   const save = async () => {
     if (!form.nombre.trim()) return toast.error('El nombre es obligatorio')
-    const { porBarra, ...datos } = form
+    const { porBarra, ...resto } = form
+    const datos = { ...resto, ancho: Number(form.ancho) || 0, alto: form.perfil === 'redondo' ? 0 : (Number(form.alto) || 0) }
+    if (datos.perfil && !(datos.ancho > 0)) return toast.error('Falta la medida del perfil (ancho o diámetro)')
     let payload
     if (porBarra) {
       const precioBarra = parseFloat(form.precioBarra)
@@ -136,6 +146,22 @@ export default function Articulos() {
       load()
     } catch { toast.error('Error al guardar') }
     finally { setSaving(false) }
+  }
+
+  // Al escribir el nombre de un artículo nuevo, si parece un caño o planchuela se completa el perfil
+  const onNombreBlur = () => {
+    if (form.perfil) return
+    const d = detectarPerfil(form.nombre)
+    if (d) setForm(f => ({ ...f, ...d, alto: d.alto || '' }))
+  }
+
+  const detectarPerfiles = async () => {
+    try {
+      const r = await articulosApi.detectarPerfiles()
+      if (r.detectados.length) toast.success(`Perfil detectado en ${r.detectados.length} artículo${r.detectados.length !== 1 ? 's' : ''}`)
+      else toast(`No se detectaron perfiles nuevos (${r.revisados} sin perfil revisados)`)
+      load()
+    } catch { toast.error('Error al detectar perfiles') }
   }
 
   const remove = async (id) => {
@@ -276,6 +302,9 @@ export default function Articulos() {
         <button className="btn" onClick={openHistorial}>
           <History size={14} /> Historial
         </button>
+        <button className="btn" onClick={detectarPerfiles} title="Completa el perfil (para calcular la pintura) de los caños y planchuelas que todavía no lo tienen, leyendo las medidas del nombre">
+          <PaintBucket size={14} /> Detectar perfiles
+        </button>
         <button className="btn danger" onClick={() => setDeleteAllModal(true)} disabled={articulos.length === 0}>
           <Trash2 size={14} /> Borrar todos
         </button>
@@ -337,7 +366,14 @@ export default function Articulos() {
                     : <div style={{ width: 32, height: 32, borderRadius: 'var(--radius-sm)', background: 'var(--bg)', border: '1px solid var(--border)' }} />}
                 </td>
                 <td style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--muted)' }}>{a.codigo || '—'}</td>
-                <td style={{ fontWeight: 500 }}>{a.nombre}</td>
+                <td style={{ fontWeight: 500 }}>
+                  {a.nombre}
+                  {a.perfil && (
+                    <div style={{ fontSize: 11, fontWeight: 400, color: 'var(--muted)' }}>
+                      pinta {m2PorMetro(a).toLocaleString('es-AR', { maximumFractionDigits: 3 })} m² por metro
+                    </div>
+                  )}
+                </td>
                 <td>{a.categoria ? <span className="badge badge-cat">{a.categoria}</span> : '—'}</td>
                 <td style={{ textAlign: 'right', fontFamily: 'var(--mono)', fontWeight: 500 }}>
                   {fmt(a.precio)}
@@ -403,7 +439,7 @@ export default function Articulos() {
             </div>
             <div className="form-row">
               <label className="form-label">Nombre *</label>
-              <input className="input" value={form.nombre} onChange={field('nombre')} placeholder="Ej: Tubo de acero 1 pulgada" />
+              <input className="input" value={form.nombre} onChange={field('nombre')} onBlur={onNombreBlur} placeholder="Ej: Tubo de acero 1 pulgada" />
             </div>
             <div className="form-row">
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
@@ -442,6 +478,31 @@ export default function Articulos() {
                   </select>
                 </div>
               </div>
+            )}
+            <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr', gap: 12 }}>
+              <div className="form-row">
+                <label className="form-label">Perfil (para la pintura)</label>
+                <select className="input" value={form.perfil} onChange={field('perfil')}>
+                  {PERFILES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                </select>
+              </div>
+              {form.perfil && <>
+                <div className="form-row">
+                  <label className="form-label">{form.perfil === 'redondo' ? 'Diámetro (mm)' : 'Ancho (mm)'}</label>
+                  <input className="input" type="number" min="0" step="0.1" value={form.ancho} onChange={field('ancho')} />
+                </div>
+                {form.perfil !== 'redondo' ? (
+                  <div className="form-row">
+                    <label className="form-label">{form.perfil === 'planchuela' ? 'Espesor (mm)' : 'Alto (mm)'}</label>
+                    <input className="input" type="number" min="0" step="0.1" value={form.alto} onChange={field('alto')} />
+                  </div>
+                ) : <div />}
+              </>}
+            </div>
+            {form.perfil && (
+              <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: -6, marginBottom: 10 }}>
+                Superficie a pintar: {m2PorMetro(form).toLocaleString('es-AR', { maximumFractionDigits: 3 })} m² por metro
+              </p>
             )}
             <div className="form-row">
               <label className="form-label">Notas</label>

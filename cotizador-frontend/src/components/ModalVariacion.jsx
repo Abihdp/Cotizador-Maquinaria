@@ -211,6 +211,7 @@ export default function ModalVariacion({ maquinaId, onClose }) {
                         { label: 'Mano de obra', actual: cA.manoObra,    anterior: selSnap.detalle?.manoObra    },
                         { label: 'Consumibles',  actual: cA.consumibles, anterior: selSnap.detalle?.consumibles },
                         { label: 'Placas',       actual: cA.placas,      anterior: selSnap.detalle?.placas      },
+                        { label: 'Pintura',      actual: cA.pintura,     anterior: selSnap.detalle?.pintura     },
                         { label: 'Flete',        actual: cA.flete,       anterior: selSnap.detalle?.flete       },
                         { label: 'Impuestos',    actual: cA.impuestos,   anterior: selSnap.detalle?.impuestos   },
                         { label: 'Garantía',     actual: cA.garantia,    anterior: selSnap.detalle?.garantia    },

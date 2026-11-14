@@ -1,22 +1,9 @@
 import { Router } from 'express'
 import SnapshotCosto from '../models/SnapshotCosto.js'
 import Maquina from '../models/Maquina.js'
+import { calcCosto, detalleSnapshot, getPinturaConfig } from '../lib/costos.js'
 
 const router = Router()
-
-// Función que calcula el costo total de una máquina (igual que el frontend)
-function calcCosto(maq) {
-  const materiales  = (maq.componentes || []).reduce((s, c) => s + (c.articulo?.precio || 0) * (c.cantidad || 0), 0)
-  const manoObra    = (maq.recursosHora || []).reduce((s, r) => s + (r.horas || 0) * (r.tarifa || 0), 0)
-  const consumibles = maq.consumibles || 0
-  const placas      = (maq.placaKg || 0) * (maq.placaKgPrice || 0)
-  const costoBase   = materiales + manoObra + consumibles + placas
-  const flete       = costoBase * ((maq.pctFlete || 0) / 100)
-  const subtotal    = costoBase + flete
-  const impuestos   = subtotal * ((maq.pctImpuestos || 0) / 100)
-  const garantia    = subtotal * ((maq.pctGarantia  || 0) / 100)
-  return { materiales, manoObra, consumibles, placas, flete, impuestos, garantia, total: subtotal + impuestos + garantia }
-}
 
 // POST — crear snapshots de todas las máquinas que usan un artículo específico
 // Llamado automáticamente cuando se actualiza el precio de un artículo
@@ -30,16 +17,17 @@ router.post('/por-articulo/:articuloId', async (req, res) => {
       'componentes.articulo': articuloId
     }).populate('componentes.articulo')
 
+    const pintura = await getPinturaConfig()
     const creados = []
     for (const maq of maquinas) {
-      const c = calcCosto(maq)
+      const c = calcCosto(maq, pintura)
       const snap = await SnapshotCosto.create({
         maquina:       maq._id,
         maquinaNombre: maq.nombre,
         motivo,
         costoTotal:    c.total,
         margen:        maq.margen || 0,
-        detalle:       { materiales: c.materiales, manoObra: c.manoObra, consumibles: c.consumibles, placas: c.placas, flete: c.flete, impuestos: c.impuestos, garantia: c.garantia },
+        detalle:       detalleSnapshot(c),
       })
       creados.push(snap)
     }
@@ -55,14 +43,15 @@ router.post('/maquina/:id', async (req, res) => {
   try {
     const maq = await Maquina.findById(req.params.id).populate('componentes.articulo')
     if (!maq) return res.status(404).json({ error: 'Máquina no encontrada' })
-    const c = calcCosto(maq)
+    const pintura = await getPinturaConfig()
+    const c = calcCosto(maq, pintura)
     const snap = await SnapshotCosto.create({
       maquina:       maq._id,
       maquinaNombre: maq.nombre,
       motivo:        req.body.motivo || 'Snapshot manual',
       costoTotal:    c.total,
       margen:        maq.margen || 0,
-      detalle:       { materiales: c.materiales, manoObra: c.manoObra, consumibles: c.consumibles, placas: c.placas, flete: c.flete, impuestos: c.impuestos, garantia: c.garantia },
+      detalle:       detalleSnapshot(c),
     })
     res.json(snap)
   } catch (e) {

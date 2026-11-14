@@ -20,6 +20,8 @@ const maquinaSchema = new mongoose.Schema({
   componentes: [componenteSchema],
   recursosHora: { type: [recursoHoraSchema], default: [] },
 
+  pintar: { type: Boolean, default: true }, // si se pinta, la pintura se calcula con los perfiles
+
   // Costos varios
   consumibles:       { type: Number, default: 0, min: 0 }, // monto fijo estimado
   pinturaLitros:     { type: Number, default: 0, min: 0 }, // litros usados

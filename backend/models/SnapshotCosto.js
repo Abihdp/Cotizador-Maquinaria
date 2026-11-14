@@ -12,6 +12,7 @@ const snapshotSchema = new mongoose.Schema({
     manoObra:    { type: Number, default: 0 },
     consumibles: { type: Number, default: 0 },
     placas:      { type: Number, default: 0 },
+    pintura:     { type: Number, default: 0 },
     flete:       { type: Number, default: 0 },
     impuestos:   { type: Number, default: 0 },
     garantia:    { type: Number, default: 0 },

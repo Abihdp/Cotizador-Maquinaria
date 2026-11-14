@@ -17,6 +17,7 @@ export const articulosApi = {
     const fd = new FormData(); fd.append('file', file)
     return api.post('/articulos/import/excel', fd).then(r => r.data)
   },
+  detectarPerfiles: () => api.post('/articulos/detectar-perfiles').then(r => r.data),
   exportUrl: () => `${import.meta.env.VITE_API_URL || ''}/api/articulos/export/excel`,
 }
 
@@ -29,8 +30,8 @@ export const maquinasApi = {
 
 export const configApi = {
   get: () => api.get('/config').then(r => r.data),
-  update: (tarifas, precioPlacaKg, pagos, empresa) =>
-    api.put('/config', { tarifas, precioPlacaKg, pagos, empresa }).then(r => r.data),
+  update: (tarifas, precioPlacaKg, pagos, empresa, pintura) =>
+    api.put('/config', { tarifas, precioPlacaKg, pagos, empresa, pintura }).then(r => r.data),
 }
 
 export const snapshotsApi = {

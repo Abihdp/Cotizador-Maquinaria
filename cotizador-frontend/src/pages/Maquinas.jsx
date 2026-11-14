@@ -3,7 +3,9 @@ import { Plus, Pencil, Trash2, Eye, Search, X, ChevronDown, Package, Upload, Ref
 import * as XLSX from 'xlsx'
 import toast from 'react-hot-toast'
 import { articulosApi, maquinasApi, configApi } from '../lib/api.js'
-import { fmt, calcCostoTotal, calcVenta, resizeImageToDataUrl } from '../lib/utils.js'
+import { fmt, calcCostoTotal, calcVenta, resizeImageToDataUrl, setPinturaConfig } from '../lib/utils.js'
+
+const litros = (n) => `${(n || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })} L`
 import ModalRecotizacion from '../components/ModalRecotizacion.jsx'
 import ModalListaMateriales from '../components/ModalListaMateriales.jsx'
 import ModalVariacion from '../components/ModalVariacion.jsx'
@@ -28,6 +30,7 @@ const EMPTY_MAQ = (cfg = {}) => ({
   placaKg:           0,
   placaKgPrice:      cfg.precioPlacaKg     || 0,
   pctFlete: 0, pctImpuestos: 0, pctGarantia: 0,
+  pintar: true,
 })
 
 /* ── Modal selector de artículos ── */
@@ -237,12 +240,20 @@ export default function Maquinas() {
       setMaquinas(Array.isArray(maqData) ? maqData : [])
       setArticulos(Array.isArray(artData) ? artData : [])
       setCfg(cfgData || {})
+      setPinturaConfig(cfgData?.pintura)
     } catch { toast.error('Error al cargar datos') }
     finally { setLoading(false) }
   }
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { loadAll() }, [])
+
+  // Si se guarda la configuración (precios o rendimiento de pintura), recalcular todo
+  useEffect(() => {
+    const onCfg = () => loadAll()
+    window.addEventListener('config-actualizada', onCfg)
+    return () => window.removeEventListener('config-actualizada', onCfg)
+  }, [])
 
   const filtrados = maquinas.filter(m => {
     const matchQ   = !q || m.nombre.toLowerCase().includes(q.toLowerCase())
@@ -296,6 +307,7 @@ export default function Maquinas() {
       placaKg:           m.placaKg           || 0,
       placaKgPrice:      cfg.precioPlacaKg   || m.placaKgPrice    || 0,
       pctFlete: m.pctFlete||0, pctImpuestos: m.pctImpuestos||0, pctGarantia: m.pctGarantia||0,
+      pintar: m.pintar !== false,
     })
     setModal('edit')
   }
@@ -345,6 +357,7 @@ export default function Maquinas() {
         pctFlete:          Number(form.pctFlete)          || 0,
         pctImpuestos:      Number(form.pctImpuestos)      || 0,
         pctGarantia:       Number(form.pctGarantia)       || 0,
+        pintar:            form.pintar !== false,
       }
       if (editId) await maquinasApi.update(editId, payload)
       else        await maquinasApi.create(payload)
@@ -619,6 +632,22 @@ export default function Maquinas() {
                     <td style={{padding:'7px 12px',textAlign:'right',fontFamily:'var(--mono)',fontSize:12,color:'var(--muted)'}}>{fmt(form.placaKgPrice)}/kg</td>
                     <td style={{padding:'7px 12px',textAlign:'right',fontFamily:'var(--mono)',fontSize:12,fontWeight:500}}>{fmt((Number(form.placaKg)||0)*(Number(form.placaKgPrice)||0))}</td>
                   </tr>
+                  {/* Pintura — se calcula con los perfiles de los materiales */}
+                  <tr style={{borderTop:'1px solid var(--border)'}}>
+                    <td style={{padding:'7px 12px',fontWeight:500}}>
+                      <label style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer'}}>
+                        <input type="checkbox" checked={form.pintar !== false} onChange={e=>setForm(f=>({...f,pintar:e.target.checked}))}/>
+                        Pintura
+                      </label>
+                      <span style={{fontSize:11,color:'var(--muted)',fontWeight:400}}>se calcula con los caños de la máquina</span>
+                    </td>
+                    <td colSpan={2} style={{padding:'7px 12px',textAlign:'right',fontSize:12,color:'var(--muted)'}}>
+                      {form.pintar === false ? 'No se pinta' : costs.pinturaDetalle.m2 > 0
+                        ? <>{costs.pinturaDetalle.m2.toLocaleString('es-AR',{maximumFractionDigits:2})} m² · PU {litros(costs.pinturaDetalle.puMezcla)} · primer {litros(costs.pinturaDetalle.primer)}</>
+                        : 'Sin caños con perfil cargado'}
+                    </td>
+                    <td style={{padding:'7px 12px',textAlign:'right',fontFamily:'var(--mono)',fontSize:12,fontWeight:500}}>{fmt(costs.pintura)}</td>
+                  </tr>
                 </tbody>
               </table>
             </div>
@@ -646,6 +675,7 @@ export default function Maquinas() {
               <ResumenFila label="Mano de obra"                              val={costs.manoObra}/>
               <ResumenFila label="Consumibles"                               val={costs.consumibles}/>
               <ResumenFila label="Placas de corte"                           val={costs.placas}/>
+              <ResumenFila label="Pintura"                                   val={costs.pintura}/>
               <ResumenFila label={`Flete (${form.pctFlete}%)`}               val={costs.flete}/>
               <ResumenFila label={`Impuestos (${form.pctImpuestos}%)`}       val={costs.impuestos}/>
               <ResumenFila label={`Garantía / postventa (${form.pctGarantia}%)`} val={costs.garantia}/>
@@ -716,12 +746,22 @@ export default function Maquinas() {
                 </div>
               </>}
 
+              {c.pinturaDetalle.m2>0 && <>
+                <div className="section-label">Pintura — para el pintor</div>
+                <div className="comp-list" style={{marginBottom:12}}>
+                  <div className="comp-row"><span className="comp-name">Superficie a pintar</span><span className="comp-sub" style={{marginLeft:'auto'}}>{c.pinturaDetalle.m2.toLocaleString('es-AR',{maximumFractionDigits:2})} m²</span></div>
+                  <div className="comp-row"><span className="comp-name">Primer</span><span className="comp-qty">{litros(c.pinturaDetalle.primer)}</span><span className="comp-sub" style={{marginLeft:'auto'}}>{fmt(c.pinturaDetalle.costoPrimer)}</span></div>
+                  <div className="comp-row"><span className="comp-name">PU mezclado: {litros(c.pinturaDetalle.pu)} pintura + {litros(c.pinturaDetalle.endurecedor)} endurecedor + {litros(c.pinturaDetalle.diluyente)} diluyente</span><span className="comp-qty">{litros(c.pinturaDetalle.puMezcla)}</span><span className="comp-sub" style={{marginLeft:'auto'}}>{fmt(c.pinturaDetalle.costoPU)}</span></div>
+                </div>
+              </>}
+
               <div className="section-label">Resumen de costos</div>
               <div style={{border:'1px solid var(--border)',borderRadius:'var(--radius-sm)',overflow:'hidden'}}>
                 <ResumenFila label="Materiales"      val={c.materiales}/>
                 <ResumenFila label="Mano de obra"    val={c.manoObra}/>
                 {c.consumibles>0 && <ResumenFila label="Consumibles"    val={c.consumibles}/>}
                 {c.placas>0      && <ResumenFila label="Placas de corte" val={c.placas}/>}
+                {c.pintura>0     && <ResumenFila label="Pintura"         val={c.pintura}/>}
                 {c.flete>0       && <ResumenFila label={`Flete (${detail.pctFlete}%)`} val={c.flete}/>}
                 <ResumenFila label={`Impuestos (${detail.pctImpuestos}%)`}       val={c.impuestos}/>
                 <ResumenFila label={`Garantía (${detail.pctGarantia}%)`}         val={c.garantia}/>

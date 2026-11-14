@@ -28,9 +28,9 @@ export default function App() {
           className="btn"
           style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}
           onClick={() => setConfig(true)}
-          title="Configuración de tarifas"
+          title="Configuración: tarifas, pintura, pagos y empresa"
         >
-          <Settings size={14} /> Tarifas
+          <Settings size={14} /> Configuración
         </button>
       </header>
 

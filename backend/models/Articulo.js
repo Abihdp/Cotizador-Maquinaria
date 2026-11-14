@@ -10,6 +10,11 @@ const articuloSchema = new mongoose.Schema({
   // calcula el precio por metro (precio = precioBarra / largoBarra).
   precioBarra: { type: Number, default: null, min: 0 },
   largoBarra:  { type: Number, default: 6, min: 0.01 },
+  // Perfil para calcular la superficie a pintar ('' = no se pinta).
+  // ancho = lado mayor o diámetro (mm); alto = lado menor o espesor de la planchuela (mm).
+  perfil: { type: String, enum: ['', 'rectangular', 'redondo', 'planchuela'], default: '' },
+  ancho:  { type: Number, default: 0, min: 0 },
+  alto:   { type: Number, default: 0, min: 0 },
   notas:     { type: String, default: '' },
   imagen:    { type: String, default: '' }, // data URI (base64) de la foto del artículo
 }, { timestamps: true })

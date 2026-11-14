@@ -1,21 +1,48 @@
 import { useState, useEffect, useRef } from 'react'
 import { Upload } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { configApi } from '../lib/api.js'
+import { configApi, articulosApi } from '../lib/api.js'
+import { fmt, PINTURA_DEFAULTS, precioLitroPintura, setPinturaConfig } from '../lib/utils.js'
+
+const PRODUCTOS_PINTURA = [
+  { key: 'pu',          label: 'Pintura PU' },
+  { key: 'endurecedor', label: 'Endurecedor' },
+  { key: 'diluyente',   label: 'Diluyente' },
+  { key: 'primer',      label: 'Primer' },
+]
+const PARAMS_PINTURA = [
+  { key: 'manosPU',           label: 'Manos de PU',                         unidad: 'manos', step: 1 },
+  { key: 'rendPU',            label: 'Rendimiento PU mezclado',             unidad: 'm²/L por mano', step: 0.5 },
+  { key: 'manosPrimer',       label: 'Manos de primer',                     unidad: 'manos', step: 1 },
+  { key: 'rendPrimer',        label: 'Rendimiento primer',                  unidad: 'm²/L por mano', step: 0.5 },
+  { key: 'perdida',           label: 'Pérdida con soplete',                 unidad: '%', step: 1 },
+  { key: 'partesPintura',     label: 'Mezcla: partes de pintura',           unidad: 'partes', step: 0.5 },
+  { key: 'partesEndurecedor', label: 'Mezcla: partes de endurecedor',       unidad: 'partes', step: 0.5 },
+  { key: 'pctDiluyente',      label: 'Mezcla: diluyente',                   unidad: '%', step: 1 },
+]
+const PINTURA_VACIA = {
+  ...PINTURA_DEFAULTS,
+  pu: { articulo: null, litros: 1 }, endurecedor: { articulo: null, litros: 1 },
+  diluyente: { articulo: null, litros: 1 }, primer: { articulo: null, litros: 1 },
+}
 
 export default function ModalConfig({ onClose }) {
   const [tarifas,  setTarifas]  = useState([])
   const [placa,    setPlaca]    = useState(0)
   const [pagos,    setPagos]    = useState({ efectivo: 0, transferencia: 0, tarjeta: 15 })
   const [empresa,  setEmpresa]  = useState({ nombre: '', logo: '' })
+  const [pintura,  setPintura]  = useState(PINTURA_VACIA)
+  const [articulos, setArticulos] = useState([])
   const [loading,  setLoading]  = useState(true)
   const [saving,   setSaving]   = useState(false)
   const [tab,      setTab]      = useState('tarifas')
   const logoRef = useRef()
 
   useEffect(() => {
+    articulosApi.getAll('').then(a => setArticulos(Array.isArray(a) ? a : [])).catch(() => {})
     configApi.get()
       .then(cfg => {
+        setPintura({ ...PINTURA_VACIA, ...(cfg.pintura || {}) })
         setTarifas(cfg.tarifas || [])
         setPlaca(cfg.precioPlacaKg || 0)
         setPagos(cfg.pagos || { efectivo: 0, transferencia: 0, tarjeta: 15 })
@@ -47,7 +74,17 @@ export default function ModalConfig({ onClose }) {
         Number(placa) || 0,
         { efectivo: Number(pagos.efectivo)||0, transferencia: Number(pagos.transferencia)||0, tarjeta: Number(pagos.tarjeta)||0 },
         empresa,
-      )
+        {
+          ...Object.fromEntries(PARAMS_PINTURA.map(({ key }) => [key, Number(pintura[key]) || 0])),
+          ...Object.fromEntries(PRODUCTOS_PINTURA.map(({ key }) => [key, {
+            articulo: pintura[key]?.articulo?._id || null,
+            litros:   Number(pintura[key]?.litros) > 0 ? Number(pintura[key].litros) : 1,
+          }])),
+        },
+      ).then(cfg => {
+        setPinturaConfig(cfg?.pintura)
+        window.dispatchEvent(new Event('config-actualizada'))
+      })
       toast.success('Configuración guardada')
       onClose()
     } catch { toast.error('Error al guardar') }
@@ -70,7 +107,7 @@ export default function ModalConfig({ onClose }) {
 
   return (
     <div className="overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal" style={{ maxWidth: 460 }}>
+      <div className="modal" style={{ maxWidth: tab === 'pintura' ? 640 : 460 }}>
         <div className="modal-header">
           <span className="modal-title">Configuración</span>
           <button className="modal-close" onClick={onClose}>×</button>
@@ -79,6 +116,7 @@ export default function ModalConfig({ onClose }) {
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 4, marginBottom: 16, background: 'var(--bg)', padding: 4, borderRadius: 8, width: 'fit-content' }}>
           <button style={tabStyle('tarifas')} onClick={() => setTab('tarifas')}>Tarifas</button>
+          <button style={tabStyle('pintura')} onClick={() => setTab('pintura')}>Pintura</button>
           <button style={tabStyle('pagos')}   onClick={() => setTab('pagos')}>Opciones de pago</button>
           <button style={tabStyle('empresa')} onClick={() => setTab('empresa')}>Empresa</button>
         </div>
@@ -121,6 +159,82 @@ export default function ModalConfig({ onClose }) {
             </div>
             <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>En cada máquina ingresás los kg y se multiplica por este precio.</p>
           </>}
+
+          {/* ── PINTURA ── */}
+          {tab === 'pintura' && (() => {
+            const opciones = [...articulos].sort((a, b) =>
+              (a.categoria === 'Pintura' ? 0 : 1) - (b.categoria === 'Pintura' ? 0 : 1) || a.nombre.localeCompare(b.nombre))
+            const setProducto = (key, cambios) => setPintura(p => ({ ...p, [key]: { ...p[key], ...cambios } }))
+            const pp = Number(pintura.partesPintura) || 0, pe = Number(pintura.partesEndurecedor) || 0
+            const d  = (Number(pintura.pctDiluyente) || 0) / 100
+            const litroMezcla = ((pp * precioLitroPintura(pintura.pu)) + (pe * precioLitroPintura(pintura.endurecedor)) +
+              ((pp + pe) * d * precioLitroPintura(pintura.diluyente))) / (((pp + pe) * (1 + d)) || 1)
+            return <>
+              <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 14 }}>
+                Los precios salen de los artículos: cuando cambia un precio, lo actualizás en <b>Artículos</b> y todas las máquinas se recalculan.
+                Acá elegís qué artículo es cada producto y cuántos litros trae una unidad.
+              </p>
+              <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 6 }}>Productos</div>
+              <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', overflow: 'hidden', marginBottom: 4 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead><tr style={{ background: 'var(--bg)' }}>
+                    <th style={thL}>Producto</th><th style={thL}>Artículo</th><th style={thR}>Litros por unidad</th><th style={thR}>$ / litro</th>
+                  </tr></thead>
+                  <tbody>
+                    {PRODUCTOS_PINTURA.map(({ key, label }, i) => {
+                      const item = pintura[key] || {}
+                      return (
+                        <tr key={key} style={{ borderBottom: i < PRODUCTOS_PINTURA.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                          <td style={tdL}>{label}</td>
+                          <td style={{ padding: '6px 10px' }}>
+                            <select className="input" style={{ fontSize: 12, padding: '5px 6px' }} value={item.articulo?._id || ''}
+                              onChange={e => {
+                                const art = articulos.find(a => a._id === e.target.value) || null
+                                const litros = art?.unidad === 'lt' ? 1 : art?.unidad === 'ml' ? 0.001 : (item.litros || 1)
+                                setProducto(key, { articulo: art, litros })
+                              }}>
+                              <option value="">— Elegir artículo —</option>
+                              {opciones.map(a => <option key={a._id} value={a._id}>{a.nombre} ({fmt(a.precio)} / {a.unidad})</option>)}
+                            </select>
+                          </td>
+                          <td style={tdR}>
+                            <input type="number" min="0.001" step="0.05" value={item.litros ?? 1}
+                              onChange={e => setProducto(key, { litros: e.target.value })} style={{ ...inputStyle, width: 80 }} />
+                          </td>
+                          <td style={tdS}>{item.articulo ? fmt(precioLitroPintura(item)) : '—'}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4, marginBottom: 14 }}>
+                Ej.: si el endurecedor está cargado por lata de 0,45 L, poné 0,45. Si el artículo está en litros, poné 1.
+                PU mezclado listo para pintar: <b>{fmt(litroMezcla)} / litro</b>.
+              </p>
+
+              <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 6 }}>Rendimiento y mezcla</div>
+              <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', overflow: 'hidden', marginBottom: 4 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <tbody>
+                    {PARAMS_PINTURA.map(({ key, label, unidad, step }, i) => (
+                      <tr key={key} style={{ borderBottom: i < PARAMS_PINTURA.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                        <td style={tdL}>{label}</td>
+                        <td style={tdR}>
+                          <input type="number" min="0" step={step} value={pintura[key] ?? ''}
+                            onChange={e => setPintura(p => ({ ...p, [key]: e.target.value }))} style={inputStyle} />
+                        </td>
+                        <td style={tdS}>{unidad}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
+                La pérdida y el rendimiento del primer están calibrados con el rack. Ajustalos cuando compares con lo que gasta el taller.
+              </p>
+            </>
+          })()}
 
           {/* ── OPCIONES DE PAGO ── */}
           {tab === 'pagos' && <>
