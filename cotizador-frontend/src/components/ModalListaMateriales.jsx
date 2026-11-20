@@ -37,7 +37,7 @@ export default function ModalListaMateriales({ onClose }) {
         const art = comp.articulo
         if (!art) continue
         const key = art._id
-        if (!mapa[key]) mapa[key] = { nombre: art.nombre, codigo: art.codigo || '', categoria: art.categoria || '', unidad: art.unidad || '', precio: art.precio || 0, cantidadTotal: 0 }
+        if (!mapa[key]) mapa[key] = { nombre: art.nombre, codigo: art.codigo || '', codigoSistema: art.codigoSistema || '', categoria: art.categoria || '', unidad: art.unidad || '', precio: art.precio || 0, cantidadTotal: 0 }
         mapa[key].cantidadTotal += comp.cantidad * cantidad
       }
     }
@@ -48,8 +48,8 @@ export default function ModalListaMateriales({ onClose }) {
 
   const exportar = () => {
     const data = [
-      ['Código', 'Nombre', 'Categoría', 'Unidad', 'Cantidad Total', 'Precio Unit.', 'Subtotal'],
-      ...consolidado.map(r => [r.codigo, r.nombre, r.categoria, r.unidad, r.cantidadTotal, r.precio, r.precio * r.cantidadTotal])
+      ['Código interno', 'Código sistema', 'Nombre', 'Categoría', 'Unidad', 'Cantidad Total', 'Precio Unit.', 'Subtotal'],
+      ...consolidado.map(r => [r.codigo, r.codigoSistema, r.nombre, r.categoria, r.unidad, r.cantidadTotal, r.precio, r.precio * r.cantidadTotal])
     ]
     const ws = XLSX.utils.aoa_to_sheet(data)
     const wb = XLSX.utils.book_new()
@@ -113,7 +113,7 @@ export default function ModalListaMateriales({ onClose }) {
                 <tbody>
                   {consolidado.map((r, i) => (
                     <tr key={r.nombre} style={{ borderBottom: i < consolidado.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                      <td style={{ padding: '7px 10px', fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted)' }}>{r.codigo || '—'}</td>
+                      <td style={{ padding: '7px 10px', fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted)' }}>{r.codigo || '—'}{r.codigoSistema && <div>sist. {r.codigoSistema}</div>}</td>
                       <td style={{ padding: '7px 10px', fontWeight: 500 }}>{r.nombre}</td>
                       <td style={{ padding: '7px 10px' }}>{r.categoria ? <span className="badge badge-cat">{r.categoria}</span> : '—'}</td>
                       <td style={{ padding: '7px 10px', textAlign: 'right', fontFamily: 'var(--mono)', fontWeight: 600 }}>{r.cantidadTotal}</td>

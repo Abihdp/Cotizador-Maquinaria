@@ -43,7 +43,7 @@ function ModalArticulos({ articulos, onSelect, onClose }) {
   const fileRef = React.useRef()
 
   const filtrados = articulos.filter(a =>
-    !q || a.nombre.toLowerCase().includes(q.toLowerCase()) || (a.codigo||'').toLowerCase().includes(q.toLowerCase())
+    !q || a.nombre.toLowerCase().includes(q.toLowerCase()) || (a.codigo||'').toLowerCase().includes(q.toLowerCase()) || (a.codigoSistema||'').toLowerCase().includes(q.toLowerCase())
   )
 
   const doAdd = (art, cantidad) => {
@@ -89,6 +89,7 @@ function ModalArticulos({ articulos, onSelect, onClose }) {
           if (isNaN(cant) || cant <= 0) { skip++; continue }
           const art = articulos.find(a =>
             (codigo && a.codigo && a.codigo.trim().toLowerCase() === String(codigo).trim().toLowerCase()) ||
+            (codigo && a.codigoSistema && a.codigoSistema.trim().toLowerCase() === String(codigo).trim().toLowerCase()) ||
             (nombre && a.nombre.trim().toLowerCase() === String(nombre).trim().toLowerCase())
           )
           if (!art) { noart++; continue }

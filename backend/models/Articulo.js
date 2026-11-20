@@ -1,7 +1,8 @@
 import mongoose from 'mongoose'
 
 const articuloSchema = new mongoose.Schema({
-  codigo:    { type: String, default: '' },
+  codigo:    { type: String, default: '' },          // código interno
+  codigoSistema: { type: String, default: '' },      // código del sistema de la empresa
   nombre:    { type: String, required: true, trim: true },
   categoria: { type: String, default: '' },
   precio:    { type: Number, required: true, min: 0 },

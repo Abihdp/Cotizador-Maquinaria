@@ -10,7 +10,7 @@ import { calcCosto, detalleSnapshot, getPinturaConfig, detectarPerfil } from '..
 const router = Router()
 const upload = multer({ storage: multer.memoryStorage() })
 
-const CAMPOS_DIFF = ['codigo', 'nombre', 'categoria', 'precio', 'unidad', 'notas', 'precioBarra', 'largoBarra', 'perfil', 'ancho', 'alto']
+const CAMPOS_DIFF = ['codigo', 'codigoSistema', 'nombre', 'categoria', 'precio', 'unidad', 'notas', 'precioBarra', 'largoBarra', 'perfil', 'ancho', 'alto']
 
 // Si el artículo se compra por barra, el precio por metro sale de dividir el
 // precio de la barra por su largo (6 m por defecto) y la unidad pasa a "mt".
@@ -26,6 +26,21 @@ function aplicarPrecioBarra(data) {
   data.precio      = Math.round((precioBarra / largo) * 100) / 100
   data.unidad      = 'mt'
   return data
+}
+
+// Busca el artículo que corresponde a una fila del Excel: primero por código de
+// sistema, después por código interno y por último por nombre.
+async function buscarExistente(f) {
+  if (f.codigoSistema) {
+    const a = await Articulo.findOne({ codigoSistema: f.codigoSistema })
+    if (a) return a
+  }
+  if (f.codigo) {
+    const a = await Articulo.findOne({ codigo: f.codigo })
+    if (a) return a
+  }
+  if (f.nombre) return Articulo.findOne({ nombre: f.nombre })
+  return null
 }
 
 const parseNum = (v) => (v === undefined || v === null || v === '') ? null : parseFloat(String(v).replace(',', '.'))
@@ -102,9 +117,13 @@ function parseExcelBuffer(buffer, opts = {}) {
     const row = rows[i]
     if (!row || row.every(c => c === undefined || c === null || c === '')) continue
 
-    // Columnas: Código | Nombre | Categoría | Precio | Unidad | Notas | (Cantidad) | Precio barra | Largo barra (m)
+    // Columnas: Código interno | Nombre | Categoría | Precio | Unidad | Notas | (Cantidad) | Precio barra | Largo barra (m) | Código sistema
     // La columna G queda para la cantidad del importador de máquinas, por eso la barra va en H e I.
-    const [codigo, nombre, categoria, precioRaw, unidad, notas, , precioBarraRaw, largoBarraRaw] = row
+    // Una fila sin nombre pero con código (interno o de sistema) solo actualiza el precio de ese artículo.
+    const [codigo, nombre, categoria, precioRaw, unidad, notas, , precioBarraRaw, largoBarraRaw, codigoSistemaRaw] = row
+    const codigoSistema = codigoSistemaRaw !== undefined && codigoSistemaRaw !== null ? String(codigoSistemaRaw).trim() : ''
+    const codigoInt     = codigo !== undefined && codigo !== null ? String(codigo).trim() : ''
+    const soloPrecio    = (!nombre || String(nombre).trim() === '') && !!(codigoSistema || codigoInt)
     const precioBarra = parseNum(precioBarraRaw)
     const largoBarra  = parseNum(largoBarraRaw)
     if (precioBarra !== null && (isNaN(precioBarra) || precioBarra < 0)) {
@@ -117,8 +136,8 @@ function parseExcelBuffer(buffer, opts = {}) {
     }
     const porBarra = precioBarra !== null && precioBarra > 0
 
-    if (!nombre || String(nombre).trim() === '') {
-      errores.push(`Fila ${excelRow}: falta el nombre del artículo.`)
+    if (!soloPrecio && (!nombre || String(nombre).trim() === '')) {
+      errores.push(`Fila ${excelRow}: falta el nombre del artículo (o un código para actualizar solo el precio).`)
       continue
     }
     if (!porBarra && (precioRaw === undefined || precioRaw === null || precioRaw === '')) {
@@ -130,13 +149,21 @@ function parseExcelBuffer(buffer, opts = {}) {
       errores.push(`Fila ${excelRow} ("${nombre}"): precio inválido — "${precioRaw}".`)
       continue
     }
+    if (soloPrecio) {
+      const f = { soloPrecio: true, codigo: codigoInt, codigoSistema, nombre: '', precio,
+        precioBarra: porBarra ? precioBarra : null, largoBarra: largoBarra || 6, excelRow }
+      if (!porBarra) delete f.precioBarra
+      filas.push(porBarra ? aplicarPrecioBarra(f) : f)
+      continue
+    }
     if (!categoria || String(categoria).trim() === '')
       advertencias.push(`Fila ${excelRow} ("${nombre}"): sin categoría, se dejará en blanco.`)
     if (!porBarra && (!unidad || String(unidad).trim() === ''))
       advertencias.push(`Fila ${excelRow} ("${nombre}"): sin unidad, se usará "unidad" por defecto.`)
 
     filas.push(aplicarPrecioBarra({
-      codigo:    codigo    ? String(codigo).trim()    : '',
+      codigo:    codigoInt,
+      codigoSistema,
       nombre:    String(nombre).trim(),
       categoria: categoria ? String(categoria).trim() : '',
       precio,
@@ -162,6 +189,7 @@ router.get('/', async (req, res) => {
       ? { $or: [
           { nombre:    { $regex: q, $options: 'i' } },
           { codigo:    { $regex: q, $options: 'i' } },
+          { codigoSistema: { $regex: q, $options: 'i' } },
           { categoria: { $regex: q, $options: 'i' } },
         ]}
       : {}
@@ -183,9 +211,9 @@ router.get('/export/excel', async (req, res) => {
   try {
     const articulos = await Articulo.find().sort({ nombre: 1 })
     const data = [
-      ['Código', 'Nombre', 'Categoría', 'Precio', 'Unidad', 'Notas', 'Cantidad', 'Precio barra', 'Largo barra (m)'],
+      ['Código interno', 'Nombre', 'Categoría', 'Precio', 'Unidad', 'Notas', 'Cantidad', 'Precio barra', 'Largo barra (m)', 'Código sistema'],
       ...articulos.map(a => [a.codigo, a.nombre, a.categoria, a.precio, a.unidad, a.notas, '',
-        a.precioBarra || '', a.precioBarra ? (a.largoBarra || 6) : ''])
+        a.precioBarra || '', a.precioBarra ? (a.largoBarra || 6) : '', a.codigoSistema || ''])
     ]
     const ws = XLSX.utils.aoa_to_sheet(data)
     const wb = XLSX.utils.book_new()
@@ -216,13 +244,14 @@ router.post('/import/preview', upload.single('file'), async (req, res) => {
     const nuevos = [], actualizados = []
 
     for (const f of filas) {
-      const filter = f.codigo
-        ? { $or: [{ codigo: f.codigo }, { nombre: f.nombre }] }
-        : { nombre: f.nombre }
-      const existing = await Articulo.findOne(filter)
+      const existing = await buscarExistente(f)
       if (existing) {
-        const cambios = calcDiff(existing, f)
-        actualizados.push({ ...f, cambios, _id: existing._id })
+        const { soloPrecio, excelRow, ...datos } = f
+        if (!datos.codigoSistema) delete datos.codigoSistema
+        const cambios = calcDiff(existing, datos)
+        actualizados.push({ ...datos, nombre: existing.nombre, codigo: existing.codigo, codigoSistema: existing.codigoSistema, cambios, _id: existing._id })
+      } else if (f.soloPrecio) {
+        errores.push(`Fila ${f.excelRow}: no hay ningún artículo con código ${f.codigoSistema ? `de sistema "${f.codigoSistema}"` : `interno "${f.codigo}"`}.`)
       } else {
         nuevos.push(f)
       }
@@ -243,22 +272,33 @@ router.post('/import/excel', upload.single('file'), async (req, res) => {
     const sessionId = genSessionId()
     const histEntries = []
 
-    for (const f of filas) {
-      const filter = f.codigo
-        ? { $or: [{ codigo: f.codigo }, { nombre: f.nombre }] }
-        : { nombre: f.nombre }
+    for (const f0 of filas) {
+      const { soloPrecio, excelRow, ...f } = f0
       try {
-        const before = await Articulo.findOne(filter)
-        await Articulo.findOneAndUpdate(filter, f, { upsert: true, new: true, setDefaultsOnInsert: true })
+        const before = await buscarExistente(f0)
+        if (!before && soloPrecio) {
+          errores.push(`Fila ${excelRow}: no hay ningún artículo con código ${f.codigoSistema ? `de sistema "${f.codigoSistema}"` : `interno "${f.codigo}"`}.`)
+          continue
+        }
+        // Un Excel sin la columna "Código sistema" no borra el código que ya tenía el artículo
+        if (!f.codigoSistema) delete f.codigoSistema
+        if (soloPrecio) {
+          // Solo precio: no se tocan nombre, códigos ni el resto de los datos
+          delete f.nombre; delete f.codigo; delete f.codigoSistema
+        }
+        if (before) await Articulo.findByIdAndUpdate(before._id, f, { runValidators: true })
+        else        await Articulo.create(f)
         const esNuevo = !before
         histEntries.push({
           tipo: 'importado', importSessionId: sessionId, esNuevo,
-          articuloNombre: f.nombre, articuloCodigo: f.codigo,
+          articuloNombre: before?.nombre || f.nombre, articuloCodigo: before?.codigo || f.codigo || f.codigoSistema || '',
           cambios: before ? calcDiff(before, f) : [],
         })
+        if (before && f.precio !== undefined && Number(before.precio) !== Number(f.precio))
+          snapshotMaquinasDeArticulo(before._id, 'Importación de precios')
         esNuevo ? added++ : updated++
       } catch (dbErr) {
-        errores.push(`"${f.nombre}": error al guardar — ${dbErr.message}`)
+        errores.push(`"${f.nombre || f.codigoSistema || f.codigo}": error al guardar — ${dbErr.message}`)
       }
     }
 

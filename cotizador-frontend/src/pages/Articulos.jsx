@@ -4,12 +4,12 @@ import toast from 'react-hot-toast'
 import { articulosApi } from '../lib/api.js'
 import { fmt, resizeImageToDataUrl, detectarPerfil, m2PorMetro } from '../lib/utils.js'
 
-const EMPTY = { codigo: '', nombre: '', categoria: '', precio: '', unidad: 'unidad', notas: '', imagen: '', porBarra: false, precioBarra: '', largoBarra: 6, perfil: '', ancho: '', alto: '' }
+const EMPTY = { codigo: '', codigoSistema: '', nombre: '', categoria: '', precio: '', unidad: 'unidad', notas: '', imagen: '', porBarra: false, precioBarra: '', largoBarra: 6, perfil: '', ancho: '', alto: '' }
 const CATEGORIAS_ART = ['Repuestos', 'Estructuras', 'Tapizados', 'Pintura']
 const UNIDADES = ['mt', 'kg', 'unidad', 'm2', 'cm','lt','ml']
 const POR_PAGINA = 12
 
-const CAMPO_LABEL = { codigo: 'Código', nombre: 'Nombre', categoria: 'Categoría', precio: 'Precio', unidad: 'Unidad', notas: 'Notas', precioBarra: 'Precio barra', largoBarra: 'Largo barra', perfil: 'Perfil', ancho: 'Ancho / Ø', alto: 'Alto / espesor' }
+const CAMPO_LABEL = { codigo: 'Código interno', codigoSistema: 'Código sistema', nombre: 'Nombre', categoria: 'Categoría', precio: 'Precio', unidad: 'Unidad', notas: 'Notas', precioBarra: 'Precio barra', largoBarra: 'Largo barra', perfil: 'Perfil', ancho: 'Ancho / Ø', alto: 'Alto / espesor' }
 
 const PERFILES = [
   { value: '',            label: 'No se pinta' },
@@ -88,7 +88,7 @@ export default function Articulos() {
   // Filtrado local
   const filtrados = articulos.filter(a => {
     const matchNombre = !qNombre || a.nombre.toLowerCase().includes(qNombre.toLowerCase())
-    const matchCodigo = !qCodigo || (a.codigo||'').toLowerCase().includes(qCodigo.toLowerCase())
+    const matchCodigo = !qCodigo || [a.codigo, a.codigoSistema].some(c => (c||'').toLowerCase().includes(qCodigo.toLowerCase()))
     const matchCat    = !catFiltro || a.categoria === catFiltro
     return matchNombre && matchCodigo && matchCat
   })
@@ -102,7 +102,7 @@ export default function Articulos() {
   const openEdit = (a) => {
     setEditId(a._id)
     setForm({
-      codigo: a.codigo, nombre: a.nombre, categoria: a.categoria, precio: a.precio, unidad: a.unidad, notas: a.notas, imagen: a.imagen || '',
+      codigo: a.codigo, codigoSistema: a.codigoSistema || '', nombre: a.nombre, categoria: a.categoria, precio: a.precio, unidad: a.unidad, notas: a.notas, imagen: a.imagen || '',
       porBarra: a.precioBarra > 0, precioBarra: a.precioBarra || '', largoBarra: a.largoBarra || 6,
       perfil: a.perfil || '', ancho: a.ancho || '', alto: a.alto || '',
     })
@@ -315,7 +315,7 @@ export default function Articulos() {
             <Search size={13} style={{ color: 'var(--muted)', flexShrink: 0 }} />
             <input
               style={{ border: 'none', outline: 'none', background: 'transparent', width: '100%', fontFamily: 'var(--font)', fontSize: 13, color: 'var(--text)' }}
-              placeholder="Buscar código..." value={qCodigo}
+              placeholder="Buscar código (interno o sistema)..." value={qCodigo}
               onChange={e => { setQCodigo(e.target.value); resetPagina() }}
             />
           </div>
@@ -365,7 +365,10 @@ export default function Articulos() {
                     ? <img src={a.imagen} alt="" style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }} />
                     : <div style={{ width: 32, height: 32, borderRadius: 'var(--radius-sm)', background: 'var(--bg)', border: '1px solid var(--border)' }} />}
                 </td>
-                <td style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--muted)' }}>{a.codigo || '—'}</td>
+                <td style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--muted)' }}>
+                  {a.codigo || '—'}
+                  {a.codigoSistema && <div style={{ fontSize: 11 }} title="Código del sistema">sist. {a.codigoSistema}</div>}
+                </td>
                 <td style={{ fontWeight: 500 }}>
                   {a.nombre}
                   {a.perfil && (
@@ -424,10 +427,14 @@ export default function Articulos() {
               <span className="modal-title">{editId ? 'Editar artículo' : 'Nuevo artículo'}</span>
               <button className="modal-close" onClick={() => setModal(false)}>×</button>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
               <div className="form-row">
-                <label className="form-label">Código</label>
+                <label className="form-label">Código interno</label>
                 <input className="input" value={form.codigo} onChange={field('codigo')} placeholder="TUBO-001" />
+              </div>
+              <div className="form-row">
+                <label className="form-label">Código sistema</label>
+                <input className="input" value={form.codigoSistema} onChange={field('codigoSistema')} placeholder="El del sistema de la empresa" />
               </div>
               <div className="form-row">
                 <label className="form-label">Categoría</label>
