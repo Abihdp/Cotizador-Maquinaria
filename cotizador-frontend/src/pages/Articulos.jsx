@@ -204,9 +204,9 @@ export default function Articulos() {
       setImportConfig({ sheetIndex: 0, startRow: 2, endRow: '' })
       setPreviewData(null)
       setImportStep('config')
-    } catch {
+    } catch (e) {
       toast.dismiss(t)
-      toast.error('Error al leer el archivo')
+      toast.error(`Error al leer el archivo: ${e.response?.data?.error || (e.response ? `el servidor respondió ${e.response.status}` : 'no se pudo conectar con el servidor')}`, { duration: 8000 })
     }
   }
 
@@ -218,9 +218,9 @@ export default function Articulos() {
       toast.dismiss(t)
       setPreviewData(data)
       setImportStep('preview')
-    } catch {
+    } catch (e) {
       toast.dismiss(t)
-      toast.error('Error al generar la vista previa')
+      toast.error(`Error al generar la vista previa: ${e.response?.data?.error || (e.response ? `el servidor respondió ${e.response.status}` : 'no se pudo conectar con el servidor')}`, { duration: 8000 })
     } finally { setPreviewing(false) }
   }
 
@@ -235,9 +235,9 @@ export default function Articulos() {
       if (errors?.length) toast.error(errors.join('\n'), { duration: 5000 })
       resetImport()
       load()
-    } catch {
+    } catch (e) {
       toast.dismiss(t)
-      toast.error('Error al importar')
+      toast.error(`Error al importar: ${e.response?.data?.error || (e.response ? `el servidor respondió ${e.response.status}` : 'no se pudo conectar con el servidor')}`, { duration: 8000 })
     } finally { setImporting(false) }
   }
 
